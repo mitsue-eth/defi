@@ -7,7 +7,7 @@ import { addLiquidity, calculateCD } from '../utils/addLiquidity';
 import {
 	getCDTokensBalance,
 	getEtherBalance,
-	getLPTokenBalance,
+	getLPTokensBalance,
 	getReserveOfCDTokens,
 } from '../utils/getAmounts';
 import {
@@ -71,7 +71,38 @@ export default function Home() {
 	 * getAmounts call various functions to retrive amounts for ethbalance,
 	 * LP tokens etc
 	 */
-	const getAmounts = async () => {};
+	const getAmounts = async () => {
+		try {
+			const provider = await getProviderOrSigner(false);
+			const signer = await getProviderOrSigner(true);
+			const address = await signer.getAddress();
+			console.log('#####: Address of the wallet: ', address);
+
+			//get the amount of ETH in user's account
+			const _ethBalance = await getEtherBalance(provider, address);
+			console.log('#####: Address eth balance:', await _ethBalance.toString());
+
+			//get amount of CD Tokens held by user
+			const _cdBalance = await getCDTokensBalance(provider, address);
+			console.log('#####: Address CD balance:', await _cdBalance.toString());
+
+			//get amount of CD LP
+			const _lpBalance = await getLPTokensBalance(provider, address);
+			console.log('#####: Address LP balance:', await _lpBalance.toString());
+
+			//get amount oc CD tokens balance in the reserve of exchange contract
+			const _reserveCD = await getReserveOfCDTokens(provider);
+			console.log('#####: CD in reserves: ', _reserveCD.toString());
+			//get eth in reserves of the exchange contract
+			const _ethBalanceContract = await getEtherBalance(provider, null, true);
+			console.log(
+				'#####: ETH in reserves: ',
+				await _ethBalanceContract.toString()
+			);
+		} catch (err) {
+			console.error(err);
+		}
+	};
 
 	/**** SWAP FUNCTIONS ****/
 

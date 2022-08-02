@@ -48,7 +48,7 @@ export const getLPTokensBalance = async (provider, address) => {
 			EXCHANGE_CONTRACT_ABI,
 			provider
 		);
-		const balanceOfLPTokens = await exchangeContract.balanceOf(adddress);
+		const balanceOfLPTokens = await exchangeContract.balanceOf(address);
 		return balanceOfLPTokens;
 	} catch (err) {
 		console.error(err);
@@ -57,16 +57,18 @@ export const getLPTokensBalance = async (provider, address) => {
 };
 
 //function gets reserve of CD tokens
-export const getReserveOfCDTokens = async(provider) => {
-  try {
-    const exchangeContract = new Contract(
-      EXCHANGE_CONTRACT_ADDRESS,
-      EXCHANGE_CONTRACT_ABI,
-      provider
-    );
-    const reserve = await exchangeContract.getReserve();
-  } catch(err) {
-    console.error(err);
-    return 0;
-  }
-}
+export const getReserveOfCDTokens = async (provider) => {
+	try {
+		const exchangeContract = new Contract(
+			EXCHANGE_CONTRACT_ADDRESS,
+			EXCHANGE_CONTRACT_ABI,
+			provider
+		);
+		console.log('#####: Exchange Contract ', exchangeContract);
+		const reserve = await exchangeContract.getReserve();
+		return reserve;
+	} catch (err) {
+		console.error(err);
+		return 0;
+	}
+};
