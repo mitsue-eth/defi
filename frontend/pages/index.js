@@ -95,6 +95,11 @@ export default function Home() {
 			console.log('#####: CD in reserves: ', _reserveCD.toString());
 			//get eth in reserves of the exchange contract
 			const _ethBalanceContract = await getEtherBalance(provider, null, true);
+			setEtherBalance(_ethBalance);
+			setCDBalance(_cdBalance);
+			setLPBalance(_lpBalance);
+			setReservedCD(_reserveCD);
+			setEtherBalanceContract(_ethBalanceContract);
 			console.log(
 				'#####: ETH in reserves: ',
 				await _ethBalanceContract.toString()
@@ -109,13 +114,55 @@ export default function Home() {
 	/**
 	 * swapTokens: Swaps  `swapAmountWei` of Eth/Crypto Dev tokens with `tokenToBeReceivedAfterSwap` amount of Eth/Crypto Dev tokens.
 	 */
-	const _swapTokens = async () => {};
+	const _swapTokens = async () => {
+		try {
+			const swapAmountWei = utils.parseEther(swapAmount);
+			if (!swapAmountWei.eq(zero)) {
+				const signer = await getProviderOrSigner(true);
+				setLoading(true);
+				await swapTokens(
+					signer,
+					swapAmountWei,
+					tokenToBeReceivedAfterSwap,
+					ethSelected
+				);
+				setLoading(false);
+				//get all the updated amounts after the swap
+				await getAmounts();
+				setSwapAmount('');
+			}
+		} catch (err) {
+			console.error(err);
+			setLoading(false);
+			setSwapAmount('');
+		}
+	};
 
 	/**
 	 * _getAmountOfTokensReceivedFromSwap:  Returns the number of Eth/Crypto Dev tokens that can be received
 	 * when the user swaps `_swapAmountWEI` amount of Eth/Crypto Dev tokens.
 	 */
-	const _getAmountOfTokensReceivedFromSwap = async (_swapAmount) => {};
+	const _getAmountOfTokensReceivedFromSwap = async (_swapAmount) => {
+		try {
+			const _swapAmountWei = utils.parseEther(_swapAmount.toString());
+			if (!_swapAmountWei.eq(zero)) {
+				const provider = await getProviderOrSigner();
+				const _ethBalance = await getEtherBalance(provider, null, true);
+				const amountOfTokens = await getAmountOfTokensReceivedFromSwap(
+					_swapAmountWei,
+					provider,
+					ethSelected,
+					_ethBalance,
+					reservedCD
+				);
+				settokenToBeReceivedAfterSwap(amountOfTokens);
+			} else {
+				settokenToBeReceivedAfterSwap(zero);
+			}
+		} catch (err) {
+			console.error(err);
+		}
+	};
 
 	/*** END ***/
 
@@ -128,7 +175,25 @@ export default function Home() {
 	 * then we calculate the crypto dev tokens he can add, given the Eth he wants to add by keeping the ratios
 	 * constant
 	 */
-	const _addLiquidity = async () => {};
+	const _addLiquidity = async () => {
+		try {
+			const addEtherWei = utils.parseEther(addEther.toString());
+			if (!addEtherWei.eq(zero)) {
+				const signer = await getProviderOrSigner(true);
+				setLoading(true);
+				await addLiquidity(signer, addCDTokens, addEtherWei);
+				setLoading(false);
+				setAddCDTokens(zero);
+				await getAmounts();
+			} else {
+				setAddCDTokens(zero);
+			}
+		} catch (err) {
+			console.error(err);
+			setLoading(false);
+			setAddCDTokens(zero);
+		}
+	};
 
 	/**** END ****/
 
@@ -138,14 +203,47 @@ export default function Home() {
 	 * _removeLiquidity: Removes the `removeLPTokensWei` amount of LP tokens from
 	 * liquidity and also the calculated amount of `ether` and `CD` tokens
 	 */
-	const _removeLiquidity = async () => {};
+	const _removeLiquidity = async () => {
+		try {
+			const signer = await getProviderOrSigner(true);
+			const removeLPTokensWei = utils.parseEther(removeLPTokens);
+			setLoading(true);
+			await removeLiquidity(signer, removeLPTokensWei);
+			setLoading(false);
+			await getAmounts();
+			setRemoveCD(zero);
+			setRemoveEther(zero);
+		} catch (err) {
+			console.error(err);
+			setLoading(false);
+			setRemoveCD(zero);
+			setRemoveEther(zero);
+		}
+	};
 
 	/**
 	 * _getTokensAfterRemove: Calculates the amount of `Ether` and `CD` tokens
 	 * that would be returned back to user after he removes `removeLPTokenWei` amount
 	 * of LP tokens from the contract
 	 */
-	const _getTokensAfterRemove = async (_removeLPTokens) => {};
+	const _getTokensAfterRemove = async (_removeLPTokens) => {
+		try {
+			const provider = await getProviderOrSigner();
+			const removeLPTokenWei = utils.parseEther(_removeLPTokens);
+			const _ethBalance = await getEtherBalance(provider, null, true);
+			const cryptoDevTokenReserve = await getReserveOfCDTokens(provider);
+			const { _removeEther, _removeCD } = await getTokensAfterRemove(
+				provider,
+				removeLPTokenWei,
+				_ethBalance,
+				cryptoDevTokenReserve
+			);
+			setRemoveEther(_removeEther);
+			setRemoveCD(_removeCD);
+		} catch (err) {
+			console.error(err);
+		}
+	};
 
 	/**** END ****/
 
@@ -217,7 +315,156 @@ export default function Home() {
       renderButton: Returns a button based on the state of the dapp
   */
 	const renderButton = () => {
-		return <button className={styles.button}>Test Button</button>;
+		// If wallet is not connected, return a button which allows them to connect their wllet
+		if (!walletConnected) {
+			return (
+				<button onClick={connectWallet} className={styles.button}>
+					Connect your wallet
+				</button>
+			);
+		}
+
+		// If we are currently waiting for something, return a loading button
+		if (loading) {
+			return <button className={styles.button}>Loading...</button>;
+		}
+
+		if (liquidityTab) {
+			return (
+				<div>
+					<div className={styles.description}>
+						You have:
+						<br />
+						{/* Convert the BigNumber to string using the formatEther function from ethers.js */}
+						{utils.formatEther(cdBalance)} Crypto Dev Tokens
+						<br />
+						{utils.formatEther(ethBalance)} Ether
+						<br />
+						{utils.formatEther(lpBalance)} Crypto Dev LP tokens
+					</div>
+					<div>
+						{/* If reserved CD is zero, render the state for liquidity zero where we ask the user
+                how much initial liquidity he wants to add else just render the state where liquidity is not zero and
+                we calculate based on the `Eth` amount specified by the user how much `CD` tokens can be added */}
+						{utils.parseEther(reservedCD.toString()).eq(zero) ? (
+							<div>
+								<input
+									type="number"
+									placeholder="Amount of Ether"
+									onChange={(e) => setAddEther(e.target.value || '0')}
+									className={styles.input}
+								/>
+								<input
+									type="number"
+									placeholder="Amount of CryptoDev tokens"
+									onChange={(e) =>
+										setAddCDTokens(
+											BigNumber.from(utils.parseEther(e.target.value || '0'))
+										)
+									}
+									className={styles.input}
+								/>
+								<button className={styles.button1} onClick={_addLiquidity}>
+									Add
+								</button>
+							</div>
+						) : (
+							<div>
+								<input
+									type="number"
+									placeholder="Amount of Ether"
+									onChange={async (e) => {
+										setAddEther(e.target.value || '0');
+										// calculate the number of CD tokens that
+										// can be added given  `e.target.value` amount of Eth
+										const _addCDTokens = await calculateCD(
+											e.target.value || '0',
+											etherBalanceContract,
+											reservedCD
+										);
+										setAddCDTokens(_addCDTokens);
+									}}
+									className={styles.input}
+								/>
+								<div className={styles.inputDiv}>
+									{/* Convert the BigNumber to string using the formatEther function from ethers.js */}
+									{`You will need ${utils.formatEther(addCDTokens)} Crypto Dev
+                      Tokens`}
+								</div>
+								<button className={styles.button1} onClick={_addLiquidity}>
+									Add
+								</button>
+							</div>
+						)}
+						<div>
+							<input
+								type="number"
+								placeholder="Amount of LP Tokens"
+								onChange={async (e) => {
+									setRemoveLPTokens(e.target.value || '0');
+									// Calculate the amount of Ether and CD tokens that the user would receive
+									// After he removes `e.target.value` amount of `LP` tokens
+									await _getTokensAfterRemove(e.target.value || '0');
+								}}
+								className={styles.input}
+							/>
+							<div className={styles.inputDiv}>
+								{/* Convert the BigNumber to string using the formatEther function from ethers.js */}
+								{`You will get ${utils.formatEther(removeCD)} Crypto
+                  Dev Tokens and ${utils.formatEther(removeEther)} Eth`}
+							</div>
+							<button className={styles.button1} onClick={_removeLiquidity}>
+								Remove
+							</button>
+						</div>
+					</div>
+				</div>
+			);
+		} else {
+			return (
+				<div>
+					<input
+						type="number"
+						placeholder="Amount"
+						onChange={async (e) => {
+							setSwapAmount(e.target.value || '');
+							// Calculate the amount of tokens user would receive after the swap
+							await _getAmountOfTokensReceivedFromSwap(e.target.value || '0');
+						}}
+						className={styles.input}
+						value={swapAmount}
+					/>
+					<select
+						className={styles.select}
+						name="dropdown"
+						id="dropdown"
+						onChange={async () => {
+							setEthSelected(!ethSelected);
+							// Initialize the values back to zero
+							await _getAmountOfTokensReceivedFromSwap(0);
+							setSwapAmount('');
+						}}
+					>
+						<option value="eth">Ethereum</option>
+						<option value="cryptoDevToken">Crypto Dev Token</option>
+					</select>
+					<br />
+					<div className={styles.inputDiv}>
+						{/* Convert the BigNumber to string using the formatEther function from ethers.js */}
+						{ethSelected
+							? `You will get ${utils.formatEther(
+									tokenToBeReceivedAfterSwap
+							  )} Crypto Dev Tokens`
+							: `You will get ${utils.formatEther(
+									tokenToBeReceivedAfterSwap
+							  )} Eth`}
+					</div>
+					<button className={styles.button1} onClick={_swapTokens}>
+						Swap
+					</button>
+				</div>
+			);
+		}
 	};
 
 	return (
